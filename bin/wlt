@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+
+$TESTING = false
+
+require "bundler/setup"
+require "ant/wallet"
+require "ant/ecdsa"
+require 'securerandom'
+require_relative '../lib/ant/wallet/cli'
+
+begin
+  cli = Ant::Wallet::CLI.instance
+  cli.parse
+  #cli.run
+rescue => e
+  raise e if $DEBUG
+  STDERR.puts e.message
+  STDERR.puts e.backtrace.join("\n")
+  exit 1
+end
