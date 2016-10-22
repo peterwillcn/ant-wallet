@@ -33,7 +33,7 @@ module Ant
         @out.each{|output| pout << output.to_payload }
         @payload = Ant::Wallet::Util.pack_var_int(type) <<
         Ant::Wallet::Util.pack_var_int(ver) <<
-        Ant::Wallet::Util.pack_var_int(attributes.size) <<
+        #Ant::Wallet::Util.pack_var_int(attributes.size) <<
         Ant::Wallet::Util.pack_var_int(@in.size) << pin <<
         Ant::Wallet::Util.pack_var_int(@out.size) << pout
       end

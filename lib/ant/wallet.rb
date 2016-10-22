@@ -27,8 +27,8 @@ module Ant
     DEFAULTS = {
       home: Ant::Wallet::File.user_home + '/.wallet/',
       addr: 'ATtsWQwLDpk1ecHiqwkxs7oNy9th6LDXhF',
-      node: 'http://124.42.118.215:10332',
-      type: 'c56f33fc6ecfcd0c225c4ab356fee59390af8560be0e930faebe74a6daff7c9b' #ANS
+      node: 'http://123.206.53.170:20332',
+      type: 'dc3d9da12d13a4866ced58f9b611ad0d1e9d5d2b5b1d53021ea55a37d3afb4c9' #ANS
     }
 
     HOME = DEFAULTS[:home]
