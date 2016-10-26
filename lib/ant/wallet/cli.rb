@@ -119,6 +119,14 @@ private
           opts[:list] = arg
           Ant::Wallet.list_transaction
         end
+        o.on '-e', '--raw', "List all raw" do |arg|
+          opts[:list] = arg
+          Ant::Wallet.list_hex
+        end
+        o.on '-o', '--send id', "Send raw" do |arg|
+          opts[:id] = arg
+          Ant::Wallet.send_hex opts[:id]
+        end
         o.on '-a', '--all transaction', "Find a transaction" do |arg|
           opts[:address] = arg
           Ant::Wallet.find_transaction_for_address opts[:address]

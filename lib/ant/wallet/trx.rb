@@ -2,14 +2,15 @@ module Ant::Wallet
   class Trx
 
     def initialize(addr2, amount, addr1, type, password)
-      @amount, @addr1, @type = amount, addr1, type
+      @addr2, @amount, @addr1, @type = addr2, amount, addr1, type
       @spent_ids = []
       @db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      @db2 = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'raw.db')
       Ant::Wallet.logger.level = ::Logger::WARN
       JSONRPC.logger = Ant::Wallet.logger
       @client = JSONRPC::Client.new Ant::Wallet::BCHOST
       @from = Ant::Wallet::Util.hash160_from_address @addr1
-      @to = Ant::Wallet::Util.hash160_from_address addr2
+      @to = Ant::Wallet::Util.hash160_from_address @addr2
       private_key, public_key = Ant::Wallet::Util.from_bip38(
         @db.find('wallets',@addr1)[0][2], password, @addr1)
       @tx = Ant::Protocol::Tx.new 0x80, 0x00, private_key.to_i(16), public_key
@@ -18,7 +19,6 @@ module Ant::Wallet
 
     def utxo
       balance, value, sum = 0, 0, 0
-
       unless @unspent.empty?
         @unspent.each do |t|
           unless t.empty?
@@ -41,7 +41,6 @@ module Ant::Wallet
             end
           end
         end
-
       end
 
       unless @tx.in.nil?
@@ -49,6 +48,16 @@ module Ant::Wallet
         @tx.add_out Ant::Protocol::TxOut.new(@type, @amount, @to)
       end
 
+    end
+
+    def stroe_hex
+      unless @spent_ids.empty?
+        p hex = @tx.generate_tx_hex.unpack('H*')[0]
+        dml = { address: @addr2, hex: hex, asset_id: 'ANS', amount: @amount }
+        Ant::Wallet.logger.info dml
+        @db2.insert('raws', dml)
+        @db.update_tx('txouts', @spent_ids.join(','), 'N')
+      end
     end
 
     def send_hex
