@@ -48,6 +48,11 @@ module Ant
       UNIQUE(prev_tx_output_hash, prev_tx_output_index) ON CONFLICT REPLACE
     );'
 
+    DDL_RAWS = 'create table IF NOT EXISTS raws
+    ( id integer PRIMARY KEY AUTOINCREMENT, address varchar(64), amount NUMERIC default 0.0,
+      hex text, asset_id varchar(64), height integer, state varchar(4) default "N"
+    );'
+
     #ddl = 'alter table wallets add column balance NUMERIC default 0.0;'
 
     def self.create_database
@@ -60,16 +65,19 @@ module Ant
         raise warning
       end
 
-      db_file = HOME + 'data.db'
-      db = Ant::Wallet::Store.new db_file
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       db.create_table DDL_WALLETS
       db.create_table DDL_TXOUTS
+
+      db = Ant::Wallet::Store.new(HOME + 'raw.db')
+      db.create_table DDL_RAWS
+
       db.close
     end
 
     def self.generate_address(passwd, number)
       group = Ant::ECDSA::Group::Secp256r1
-      db = Ant::Wallet::Store.new (Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new (HOME + 'data.db')
       number.times do
         encrypted_privkey, public_key_hex, address = generate(passwd)
         dml = { name: 'yunbi', encrypted_privkey: encrypted_privkey,
@@ -81,35 +89,52 @@ module Ant
     end
 
     def self.list_address
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       rows = db.select 'wallets'
       db.close
       Ant::Wallet.logger.info rows
     end
 
     def self.list_transaction
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       rows = db.select 'txouts'
       db.close
       Ant::Wallet.logger.info rows
     end
 
+    def self.list_hex
+      db = Ant::Wallet::Store.new(HOME + 'raw.db')
+      rows = db.select 'raws'
+      db.close
+      Ant::Wallet.logger.info rows
+    end
+
+    def self.send_hex id
+      client = JSONRPC::Client.new BCHOST
+      db = Ant::Wallet::Store.new(HOME + 'raw.db')
+      row = db.find_hex 'raws', id
+      hex = row[0][3]
+      Ant::Wallet.logger.info hex
+      status = client.sendrawtransaction hex
+      Ant::Wallet.logger.info status
+    end
+
     def self.find_address address
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       row = db.find 'wallets', address
       db.close
       Ant::Wallet.logger.info row
     end
 
     def self.find_transaction_for_address address
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       row = db.find_tx 'txouts', address
       db.close
       Ant::Wallet.logger.info row
     end
 
     def self.fix_block_data height
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       rows = db.select 'wallets'
       address = []
       rows.each { |row| address << row[4] }
@@ -119,7 +144,7 @@ module Ant
     end
 
     def self.find_balance_for_address address=nil
-      db = Ant::Wallet::Store.new(Ant::Wallet::HOME + 'data.db')
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
       balance = 0
       if address
         txin = db.find_tx 'txouts', address
@@ -142,7 +167,7 @@ module Ant
       passwd1 = ask("Enter your password:  ") { |q| q.echo = "*" }
       passwd2 = ask("Enter again your password:  ") { |q| q.echo = "*" }
       if passwd1 == passwd2
-        db = Ant::Wallet::Store.new (Ant::Wallet::HOME + 'data.db')
+        db = Ant::Wallet::Store.new(HOME + 'data.db')
           number.to_i.times do
             keys = generate(passwd2)
             if keys.all?

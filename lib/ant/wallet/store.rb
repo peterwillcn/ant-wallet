@@ -40,6 +40,10 @@ module Ant::Wallet
       @db.execute "select * from #{table} where address == '#{address}' and state = 'Y' order by balance"
     end
 
+    def find_hex table, id
+      @db.execute "select * from #{table} where id == '#{id}'"
+    end
+
     def find_all_tx table
       @db.execute "select * from #{table} where and state = 'Y' order by balance"
     end
