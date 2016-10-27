@@ -19,16 +19,23 @@ module Ant::Wallet
 
     def utxo
       balance, value, sum = 0, 0, 0
+
+      #p @unspent
+
       unless @unspent.empty?
         @unspent.each do |t|
           unless t.empty?
             value = t[6].to_i
             if value == @amount
+              p '1'*10
+              p t
               @tx.add_in Ant::Protocol::TxIn.new(t[3], t[4])
               @spent_ids << t[0]
               sum = value
               break
             elsif @amount >= value
+              p '2'*10
+              p t
               sum += value
               @tx.add_in Ant::Protocol::TxIn.new(t[3], t[4])
               @spent_ids << t[0]
@@ -41,19 +48,29 @@ module Ant::Wallet
             end
           end
         end
+        p @spent_ids
       end
 
+      p "sum : #{sum}"
+      p "amount: #{@amount}"
+      balance = sum - @amount
+      p "balance: #{balance}"
+
       unless @tx.in.nil?
+        p "in: #{@tx.in.size}"
+        p @tx.in
         @tx.add_out Ant::Protocol::TxOut.new(@type, balance, @from) if balance > 0
         @tx.add_out Ant::Protocol::TxOut.new(@type, @amount, @to)
+        p "out: #{@tx.out.size}"
+        p @tx.out
       end
 
     end
 
-    def stroe_hex
+    def store_hex
       unless @spent_ids.empty?
         p hex = @tx.generate_tx_hex.unpack('H*')[0]
-        dml = { address: @addr2, hex: hex, asset_id: 'ANS', amount: @amount }
+        dml = { from_address: @addr1, address: @addr2, hex: hex, asset_id: 'ANS', amount: @amount }
         Ant::Wallet.logger.info dml
         @db2.insert('raws', dml)
         @db.update_tx('txouts', @spent_ids.join(','), 'N')

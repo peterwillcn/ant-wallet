@@ -107,9 +107,29 @@ private
           opts[:new] = list
           Ant::Wallet.generate_address(opts[:new][0], opts[:new][1].to_i)
         end
+        o.on '-m', '--money', "Get wallet money" do |arg|
+          opts[:address] = arg
+          Ant::Wallet.get_wallet_balance
+        end
+        o.on '-c', '--compare', "Compare antcha.in blance" do |arg|
+          opts[:compare] = arg
+          Ant::Wallet.compare_antcha
+        end
+        o.on '-k', '--blance address', "Get a address blance" do |arg|
+          opts[:address] = arg
+          Ant::Wallet.find_balance_for_address opts[:address]
+        end
+        o.on '-w', '--import path', "Import some address" do |arg|
+          opts[:path] = arg
+          Ant::Wallet.import_some_address opts[:path]
+        end
         o.on '-l', '--list', "List all address" do |arg|
           opts[:list] = arg
           Ant::Wallet.list_address
+        end
+        o.on '-j', '--jet', "Jet lookup address" do |arg|
+          opts[:list] = arg
+          Ant::Wallet.jet_address
         end
         o.on '-f', '--find address', "Find a address" do |arg|
           opts[:address] = arg
@@ -131,9 +151,9 @@ private
           opts[:address] = arg
           Ant::Wallet.find_transaction_for_address opts[:address]
         end
-        o.on '-s', '--sync height', "Sync block data" do |arg|
-          opts[:height] = arg
-          Ant::Wallet.fix_block_data opts[:height].to_i
+        o.on '-s', '--sync height, max_height', Array, "Sync block data" do |list|
+          opts[:sync] = list
+          Ant::Wallet.fix_block_data opts[:sync][0].to_i, opts[:sync][1].to_i
         end
         o.on '-g', '--get address', "find a address balance" do |arg|
           opts[:address] = arg

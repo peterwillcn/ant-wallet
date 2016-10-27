@@ -11,6 +11,7 @@ require 'ant/protocol/txin'
 require 'ant/protocol/txout'
 require 'jsonrpc/client'
 require 'highline/import'
+require 'json'
 
 module Ant
   module Wallet
@@ -50,7 +51,12 @@ module Ant
 
     DDL_RAWS = 'create table IF NOT EXISTS raws
     ( id integer PRIMARY KEY AUTOINCREMENT, address varchar(64), amount NUMERIC default 0.0,
-      hex text, asset_id varchar(64), height integer, state varchar(4) default "N"
+      hex text, asset_id varchar(64), from_address varchar(64), height integer, state varchar(4) default "N"
+    );'
+
+    DDL_COMPARE = 'create table IF NOT EXISTS compares
+    ( id integer PRIMARY KEY AUTOINCREMENT, address varchar(64), compare NUMERIC default 0.0,
+      wallet_balance integer, antchain_balance integer
     );'
 
     #ddl = 'alter table wallets add column balance NUMERIC default 0.0;'
@@ -72,6 +78,9 @@ module Ant
       db = Ant::Wallet::Store.new(HOME + 'raw.db')
       db.create_table DDL_RAWS
 
+      db = Ant::Wallet::Store.new(HOME + 'compare.db')
+      db.create_table DDL_COMPARE
+
       db.close
     end
 
@@ -90,9 +99,17 @@ module Ant
 
     def self.list_address
       db = Ant::Wallet::Store.new(HOME + 'data.db')
-      rows = db.select 'wallets'
+      rows = db.select_state 'wallets', 1
       db.close
       Ant::Wallet.logger.info rows
+    end
+
+    def self.jet_address
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
+      rows = db.select_state 'wallets', 0
+      db.close
+      Ant::Wallet.logger.info "#{rows} --> #{rows.size}"
+      rows
     end
 
     def self.list_transaction
@@ -121,7 +138,7 @@ module Ant
 
     def self.find_address address
       db = Ant::Wallet::Store.new(HOME + 'data.db')
-      row = db.find 'wallets', address
+      row = db.find_state 'wallets', address, 1
       db.close
       Ant::Wallet.logger.info row
     end
@@ -133,34 +150,81 @@ module Ant
       Ant::Wallet.logger.info row
     end
 
-    def self.fix_block_data height
+    def self.fix_block_data height, max_height
       db = Ant::Wallet::Store.new(HOME + 'data.db')
       rows = db.select 'wallets'
       address = []
       rows.each { |row| address << row[4] }
       q = Ant::Wallet::Queue.new address
       db.close
-      Ant::Wallet.logger.info q.fix_data height
+      Ant::Wallet.logger.info q.fix_data height, max_height
     end
 
-    def self.find_balance_for_address address=nil
+    def self.find_balance_for_address address
       db = Ant::Wallet::Store.new(HOME + 'data.db')
       balance = 0
-      if address
-        txin = db.find_tx 'txouts', address
-        txin.each do |tx|
-          balance += tx[6]
-        end
-      else
-        txin = db.find_all_tx 'txouts'
-        txin.each do |tx|
-          balance += tx[6]
-        end
+      p address
+      txin = db.find_tx 'txouts', address
+      txin.each do |tx|
+        balance += tx[6]
       end
       Ant::Wallet.logger.info balance
       db.close
       balance
     end
+
+    def self.get_wallet_balance
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
+      balance = 0
+      txin = db.find_all_tx 'txouts'
+      txin.each do |tx|
+        balance += tx[6]
+      end
+      Ant::Wallet.logger.info balance
+      db.close
+      balance
+    end
+
+    def self.import_some_address path
+      p path
+      db = Ant::Wallet::Store.new(HOME + 'data.db')
+      addresses = ::File.readlines(path).map(&:chomp)
+      addresses.each do |addr|
+        db.insert('wallets', { address: addr, state: 0 })
+      end
+      db.close
+    end
+
+    def self.compare_antcha
+      db = Ant::Wallet::Store.new(HOME + 'compare.db')
+      wallet_balance_sum, antchain_balance_sum = 0, 0
+      jet_address.each do |address|
+        addr = address[4]
+        wallet_balance = find_balance_for_address addr
+        antchain_balance = get_balance_from_antchain addr
+        compare = wallet_balance - antchain_balance
+        wallet_balance_sum += wallet_balance
+        antchain_balance_sum += antchain_balance
+        db.insert('compares', { address: addr, compare: compare, wallet_balance: wallet_balance, antchain_balance: antchain_balance })
+        Ant::Wallet.logger.info "#{compare}, #{addr}, wallet_balance: #{wallet_balance}, antchain_balance: #{antchain_balance}"
+      end
+      Ant::Wallet.logger.info "wallet_balance_sum: #{wallet_balance_sum} antchain_balance_sum #{antchain_balance_sum}"
+    end
+
+    def self.get_balance_from_antchain(address)
+     conn = Faraday.new(:url => 'http://antcha.in') do |faraday|
+       faraday.request  :url_encoded
+       faraday.adapter  Faraday.default_adapter
+     end
+     response = conn.get "/api/v1/address/info/#{address}"
+     balances = ::JSON.parse(response.body)["balances"]
+     if balances
+       balance = balances.find do |balance|
+         balance["asset"] == Ant::Wallet::TYPE
+       end
+     end
+     (balance && balance["balance"]) || 0
+   end
 
     def self.keygen
       number = ask("Enter number address:  ") { |q| q.echo = true }

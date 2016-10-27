@@ -32,20 +32,32 @@ module Ant::Wallet
       @db.execute "delete from #{table}"
     end
 
+    def select_state table, state
+      @db.execute "select * from #{table} where state = '#{state}'"
+    end
+
     def find table, address
-      @db.execute "select * from #{table} where address == '#{address}'"
+      @db.execute "select * from #{table} where address = '#{address}'"
+    end
+
+    def find_state table, address, state
+      @db.execute "select * from #{table} where address = '#{address}' and state = '#{state}'"
     end
 
     def find_tx table, address
-      @db.execute "select * from #{table} where address == '#{address}' and state = 'Y' order by balance"
+      @db.execute "select * from #{table} where address = '#{address}' and state = 'Y' order by balance"
     end
 
     def find_hex table, id
-      @db.execute "select * from #{table} where id == '#{id}'"
+      @db.execute "select * from #{table} where id = '#{id}'"
     end
 
     def find_all_tx table
-      @db.execute "select * from #{table} where and state = 'Y' order by balance"
+      @db.execute "select * from #{table} where state = 'Y' and asset_id = '#{Ant::Wallet::TYPE}' order by balance"
+    end
+
+    def find_a_tx table, txid, txindex
+      @db.execute "select * from #{table} where state = 'Y' and prev_tx_output_hash = '#{txid}' and prev_tx_output_index= '#{txindex}'"
     end
 
     def update_tx table, ids, state
