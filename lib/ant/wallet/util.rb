@@ -8,32 +8,39 @@ require 'securerandom'
 
 module Ant::Wallet
   module Util
+    ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+    def self.sha256(d)
+      Digest::SHA256.digest(d)
+    end
+
+    def self.hash256_hex(b)
+      Digest::SHA256.hexdigest sha256(b)
+    end
 
     def self.hash160(hex)
       bytes = [hex].pack("H*")
-      Digest::RMD160.hexdigest Digest::SHA256.digest(bytes)
+      Digest::RMD160.hexdigest sha256(bytes)
     end
 
     def self.checksum(hex)
       b = [hex].pack("H*")
-      Digest::SHA256.hexdigest( Digest::SHA256.digest(b) )[0...8]
+      hash256_hex(b)[0...8]
     end
 
     def self.int_to_base58(int_val, leading_zero_bytes=0)
-      alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-      base58_val, base = '', alpha.size
+      b58, base = '', ALPHABET.size
       while int_val > 0
         int_val, remainder = int_val.divmod(base)
-        base58_val = alpha[remainder] + base58_val
+        b58 = ALPHABET[remainder] + b58
       end
-      base58_val
+      b58
     end
 
-    def self.base58_to_int(base58_val)
-      alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-      int_val, base = 0, alpha.size
-      base58_val.reverse.each_char.with_index do |char,index|
-        raise ArgumentError, 'Value not a valid Base58 String.' unless char_index = alpha.index(char)
+    def self.base58_to_int(b58)
+      int_val, base = 0, ALPHABET.size
+      b58.reverse.each_char.with_index do |char,index|
+        raise ArgumentError, 'Value not a valid Base58 String.' unless char_index = ALPHABET.index(char)
         int_val += char_index*(base**index)
       end
       int_val
@@ -44,10 +51,10 @@ module Ant::Wallet
       ("1"*leading_zero_bytes) + int_to_base58( hex.to_i(16) )
     end
 
-    def self.decode_base58(base58_val)
-      s = base58_to_int(base58_val).to_s(16); s = (s.bytesize.odd? ? '0'+s : s)
+    def self.decode_base58(b58)
+      s = base58_to_int(b58).to_s(16); s = (s.bytesize.odd? ? '0'+s : s)
       s = '' if s == '00'
-      leading_zero_bytes = (base58_val.match(/^([1]+)/) ? $1 : '').size
+      leading_zero_bytes = (b58.match(/^([1]+)/) ? $1 : '').size
       s = ("00"*leading_zero_bytes) + s  if leading_zero_bytes > 0
       s
     end
@@ -103,6 +110,31 @@ module Ant::Wallet
 
     def self.pack_boolean(b)
       (b == true) ? [0xFF].pack("C") : [0x00].pack("C")
+    end
+
+    def self.encode58(bin)
+      bignum = bin.unpack('H*').first.to_i(16)
+      result = ""
+      while bignum > 0
+        bignum, remainder = bignum.divmod(58)
+        result << ALPHABET[remainder]
+      end
+      result = result.each_char.drop_while {|e| e == ALPHABET[0]}.join
+
+      leading_zeros = bin.bytes.take_while {|c| c == 0}.size
+      leading_zeros.times do
+        result << ALPHABET[0]
+      end
+      result.reverse
+    end
+
+    def self.to_wif(hex_privkey, compressed=true)
+      network = "80"
+      compressed = compressed ? "01" : ""
+      versionned = network + hex_privkey + compressed
+      sha = hash256_hex([versionned].pack('H*'))
+      privkey = [versionned + sha[0,8]].pack('H*')
+      encode58(privkey)
     end
 
     def self.to_bip38(passphrase, privkey, addr)
